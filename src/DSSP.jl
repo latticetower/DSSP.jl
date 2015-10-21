@@ -6,28 +6,19 @@ using ArgParse, Iterators
 
 function parse_commandline()
     s = ArgParseSettings()
-
     @add_arg_table s begin
-        "--score-matrix", "-s"
-            help = "an option with an argument"
+        "--input-file", "-i"
+            help = "input PDB file with structure"
             arg_type = String
-            #required = true
-        "--clustering", "-c"
-            help = "clustering type: N for neighbour joining, U for UPGMA, W for WPGMA"
-            arg_type = String
-            default = "N"
-            #required = false
+            default = "2OSL.pdb"
+            required = true
         "--verbose"
           help = "show debug messages while processing data"
           action = :store_true
-        "fasta-file"
-            help = "file in .fasta format with a set of protein strings"
-            required = true
-        "output-file"
-            help = "file in .fasta format for saving results"
+        "--output-file", "-o"
+            help = "file in plain text for saving results"
             required = true
     end
-
     return parse_args(s)
 end
 
@@ -150,16 +141,42 @@ end
 
 getVector = a :: PDBAtomInfo -> GeometryVector([a.x, a.y, a.z])
 
+# this function returns true when hydrogen bond can be formed, false - otherwise
+function CA_condition(CAs :: Array{PDBAtomInfo, 1}, i :: Int, j :: Int)
+  v1 = getVector(CAs[i])
+  v2 = getVector(CAs[j])
+  if !(abs(i - j) >= 3)
+    return false
+  end
+  r = v1 - v2
+  if !(len(r) >= 4.6 && len(r) <= 7.3)
+    return false
+  end
+  bi_0 = getVector(CAs[i]) - getVector(CAs[i - 1])
+  bi_1 = getVector(CAs[i + 1]) - getVector(CAs[i])
+  bj_0 = getVector(CAs[j]) - getVector(CAs[j - 1])
+  bj_1 = getVector(CAs[j + 1]) - getVector(CAs[j])
+  (abs((bi_0 - bi_1) * r) <= 13.4) && (abs((bj_0 - bj_1)*r) <= 13.4)
+end
+
+function getStructures(CAs :: Array{PDBAtomInfo, 1})
+  #main code
+end
+
+function processPDB(input_file_name :: String)
+  data = readPDB(input_file_name)
+  for chain in keys(data)
+      println(string("Chain: ", chain))
+      ks = sort([k for k in keys(data[chain])])
+      chain_CA = [data[chain][k]["CA"] for k in ks]
+      structures = getStructures(chain_CA)
+      println(structures)
+  end
+end
 
 function main()
-    (r1, r2) = load_atom_info("2OSL.pdb")
-    #parsed_args = parse_commandline()
-    output_file = open("backbone.json", "w")
-    println(output_file, JSON.json(r1, 1))
-    close(output_file)
-    output_file = open("sidechains.json", "w")
-    println(output_file, JSON.json(r2, 1))
-    close(output_file)
+    args = parse_commandline()
+    processPDB(args["input-file"])
 end
 
 main()
